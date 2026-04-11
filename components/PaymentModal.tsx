@@ -59,13 +59,13 @@ export default function PaymentModal({ article, cost, onSuccess, onBack }: Payme
       const data = await res.json()
 
       if (data.success) {
-        alert('Ödeme başarılı! Çeviriye erişim açıldı.')
+        alert('✅ Ödeme başarılı!\n\nÇeviriye erişim sağlanmıştır. İşlem ID: ' + data.transactionId)
         onSuccess()
       } else {
-        alert('Ödeme başarısız: ' + data.error)
+        alert('❌ Ödeme başarısız: ' + data.error)
       }
     } catch (error) {
-      alert('Ödeme hatası: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      alert('❌ Ödeme hatası: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'))
     } finally {
       setLoading(false)
     }
@@ -84,68 +84,77 @@ export default function PaymentModal({ article, cost, onSuccess, onBack }: Payme
 
       <div className="max-w-2xl mx-auto">
         {/* Order Summary */}
-        <div className="bg-gray-50 p-6 rounded-lg mb-8">
-          <h3 className="font-semibold mb-4">Sipariş Özeti</h3>
+        <div className="bg-gray-50 p-6 rounded-lg mb-8 border border-gray-200">
+          <h3 className="font-semibold mb-4 text-lg">📋 Sipariş Özeti</h3>
           <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">{article.title.substring(0, 50)}...</span>
-              <span className="font-semibold">${cost.totalCost.toFixed(2)}</span>
+            <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+              <span className="text-gray-700 font-medium">Makale:</span>
+              <span className="text-gray-600">{article.title.substring(0, 40)}...</span>
             </div>
-            <div className="border-t pt-3">
-              <div className="flex justify-between text-lg font-bold">
-                <span>Toplam Ücret</span>
-                <span className="text-blue-500">${cost.totalCost.toFixed(2)}</span>
-              </div>
+            <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+              <span className="text-gray-700 font-medium">Kelime Sayısı:</span>
+              <span className="text-gray-600">{cost.wordCount} kelime</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bold text-gray-900">Toplam Ücret:</span>
+              <span className="text-3xl font-bold text-blue-500">${cost.totalCost.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
         {/* Payment Form */}
-        <form onSubmit={handlePayment} className="space-y-4">
+        <form onSubmit={handlePayment} className="space-y-4 bg-white p-6 rounded-lg border border-gray-200">
+          <h3 className="font-semibold text-lg mb-4">💳 Kart Bilgileri</h3>
+          
           <div>
-            <label className="block text-sm font-medium mb-2">Ad Soyad</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ad Soyad</label>
             <input
               type="text"
               required
               value={cardData.name}
               onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Halil Sert"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Kart Numarası</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Kart Numarası</label>
             <input
               type="text"
               placeholder="1234 5678 9012 3456"
               required
               value={cardData.cardNumber}
-              onChange={(e) => setCardData({ ...cardData, cardNumber: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setCardData({ ...cardData, cardNumber: e.target.value.replace(/\s/g, '') })}
+              maxLength={16}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <p className="text-xs text-gray-500 mt-1">Demo: 4242 4242 4242 4242</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Geçerlilik Tarihi</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Geçerlilik Tarihi</label>
               <input
                 type="text"
-                placeholder="MM/YY"
+                placeholder="12/25"
                 required
                 value={cardData.expiry}
                 onChange={(e) => setCardData({ ...cardData, expiry: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                maxLength={5}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">CVC</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">CVC</label>
               <input
                 type="text"
                 placeholder="123"
                 required
                 value={cardData.cvc}
                 onChange={(e) => setCardData({ ...cardData, cvc: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                maxLength={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -153,15 +162,15 @@ export default function PaymentModal({ article, cost, onSuccess, onBack }: Payme
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg mt-6"
           >
-            {loading ? <Loader className="animate-spin" size={20} /> : null}
+            {loading ? <Loader className="animate-spin" size={20} /> : '✓'}
             ${cost.totalCost.toFixed(2)} Öde
           </button>
         </form>
 
-        <p className="text-xs text-gray-500 text-center mt-4">
-          Ödemeniz güvenli olarak işlenir. Banka bilgileriniz saklanmaz.
+        <p className="text-xs text-gray-500 text-center mt-6">
+          🔒 Ödemeniz 256-bit SSL ile güvenli olarak işlenir. Kart bilgileriniz sunucularımızda saklanmaz.
         </p>
       </div>
     </div>

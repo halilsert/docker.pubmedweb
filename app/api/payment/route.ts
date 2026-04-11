@@ -1,31 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Stripe entegrasyonu için gerekli
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_demo'
+
 export async function POST(request: NextRequest) {
   try {
     const { article, cost, cardData } = await request.json()
 
-    // Kart validasyonu (demo amaçlı)
-    if (cardData.cardNumber.length < 13 || cardData.cvc.length < 3) {
-      return NextResponse.json({ success: false, error: 'Geçersiz kart bilgileri' })
+    // Basit validasyon
+    if (!cardData.cardNumber || !cardData.cvc || !cardData.name) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Tüm alanları doldurunuz' 
+      }, { status: 400 })
     }
 
-    // Stripe integrasyonu (TODO: Stripe API anahtarı ile gerçek ödeme)
-    // Şimdilik demo modda başarılı kabul edelim
-    console.log('Payment received:', {
+    // TODO: Gerçek Stripe entegrasyonu
+    // const stripe = require('stripe')(STRIPE_SECRET_KEY)
+    // const paymentIntent = await stripe.paymentIntents.create({
+    //   amount: Math.round(cost.totalCost * 100),
+    //   currency: 'usd',
+    //   metadata: { articleId: article.id, articleTitle: article.title }
+    // })
+
+    // Demo modda başarılı kabul et
+    console.log('Payment processed:', {
       article: article.title,
-      cost: cost.totalCost,
+      amount: cost.totalCost,
       cardLast4: cardData.cardNumber.slice(-4),
+      timestamp: new Date().toISOString()
     })
 
-    // Başarılı yanıt
     return NextResponse.json({
       success: true,
-      message: 'Ödeme başarılı',
-      transactionId: 'TXN_' + Date.now(),
+      message: 'Ödeme başarılı!',
+      transactionId: `TXN_${Date.now()}`,
       accessToken: Buffer.from(`${article.id}_${Date.now()}`).toString('base64'),
+      articleUrl: `/translate/${article.id}`,
     })
   } catch (error) {
     console.error('Payment error:', error)
-    return NextResponse.json({ success: false, error: 'Ödeme işlemi başarısız' })
+    return NextResponse.json(
+      { success: false, error: 'Ödeme işlemi başarısız' },
+      { status: 500 }
+    )
   }
 }
