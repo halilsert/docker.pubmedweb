@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -16,11 +17,13 @@ model User {
   password  String?
   name      String?
   image     String?
+  role      String     @default("user") // user, admin
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   
   translations Translation[]
   payments     Payment[]
+  notifications Notification[]
   
   @@map("users")
 }
@@ -38,15 +41,21 @@ model Translation {
   sourceLanguage String  @default("en")
   targetLanguage String  @default("tr")
   
+  sourceText String?
+  translatedText String?
+  translatedBy String? // deepl, claude, libre
+  
   sourceFile String?  // URL to original PDF
   translatedFile String? // URL to translated PDF
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  completedAt DateTime?
   
   payment   Payment?
   
   @@index([userId])
+  @@index([status])
   @@map("translations")
 }
 
@@ -63,11 +72,54 @@ model Payment {
   status    String  @default("pending") // pending, completed, failed
   
   stripePaymentId String?
+  stripeSessionId String?
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  paidAt    DateTime?
   
   @@index([userId])
+  @@index([status])
   @@index([stripePaymentId])
   @@map("payments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      String   // payment_success, translation_complete, translation_failed
+  title     String
+  message   String
+  data      String? // JSON data
+  
+  read      Boolean  @default(false)
+  emailSent Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
+
+model Analytics {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  
+  totalUsers Int @default(0)
+  totalTranslations Int @default(0)
+  totalRevenue Float @default(0)
+  
+  translationsCompleted Int @default(0)
+  translationsFailed Int @default(0)
+  
+  averageWordCount Int @default(0)
+  averageCost Float @default(0)
+  
+  topEngine String? // Most used engine
+  
+  @@unique([date])
+  @@map("analytics")
 }
