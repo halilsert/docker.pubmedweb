@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String?
+  name      String?
+  image     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  translations Translation[]
+  payments     Payment[]
+  
+  @@map("users")
+}
+
+model Translation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fileName  String
+  wordCount Int
+  cost      Float
+  status    String   @default("pending") // pending, translating, completed, failed
+  
+  sourceLanguage String  @default("en")
+  targetLanguage String  @default("tr")
+  
+  sourceFile String?  // URL to original PDF
+  translatedFile String? // URL to translated PDF
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  payment   Payment?
+  
+  @@index([userId])
+  @@map("translations")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  translationId String @unique
+  translation   Translation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  
+  amount    Float
+  currency  String  @default("USD")
+  status    String  @default("pending") // pending, completed, failed
+  
+  stripePaymentId String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([stripePaymentId])
+  @@map("payments")
+}
