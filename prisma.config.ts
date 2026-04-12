@@ -3,7 +3,7 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const dbUrl = process.env["DATABASE_URL"] || "postgresql://pubmedweb:pubmedweb_password@localhost:5432/pubmedweb";
+const dbUrl = process.env["POSTGRES_PRISMA_URL"] || process.env["DATABASE_URL"];
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
