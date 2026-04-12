@@ -11,7 +11,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    adapter: "postgresql",
     url: dbUrl,
   },
 });
