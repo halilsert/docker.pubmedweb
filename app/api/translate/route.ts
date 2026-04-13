@@ -1,16 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import axios from 'axios'
+import { PrismaClient } from '@prisma/client'
+import jwt from 'jsonwebtoken'
+
+const prisma = new PrismaClient()
 
 interface TranslationResult {
   engine: string
   sourceText: string
   translatedText: string
-  confidence?: number
-  characters?: number
   time?: number
 }
 
-// DeepL Çevirisi
+function getAuthToken(request: NextRequest) {
+  const authHeader = request.headers.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7)
+  }
+  return null
+}
+
+async function getUserFromToken(token: string) {
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.NEXTAUTH_SECRET || 'default-secret-key'
+    ) as { id: string }
+    return decoded.id
+  } catch {
+    return null
+  }
+}
+
 async function translateWithDeepL(text: string): Promise<TranslationResult> {
   const startTime = Date.now()
   try {
@@ -25,95 +46,16 @@ async function translateWithDeepL(text: string): Promise<TranslationResult> {
     })
 
     return {
-      engine: 'DeepL',
+      engine: 'deepl',
       sourceText: text,
       translatedText: response.data.translations[0].text,
-      characters: response.data.translations[0].detected_source_language ? 0 : text.length,
       time: Date.now() - startTime,
     }
   } catch (error) {
-    console.error('DeepL error:', error)
-    return {
-      engine: 'DeepL',
-      sourceText: text,
-      translatedText: `[DeepL Hatası: ${error instanceof Error ? error.message : 'Bilinmeyen'}]`,
-      time: Date.now() - startTime,
-    }
+    throw new Error(`DeepL error: ${error instanceof Error ? error.message : 'Unknown'}`)
   }
 }
 
-// Google Translate API (Free - No Key Required)
-async function translateWithGoogle(text: string): Promise<TranslationResult> {
-  const startTime = Date.now()
-  try {
-    // Google Translate Free API (unofficial)
-    const response = await axios.get('https://translate.googleapis.com/translate_a/element.js', {
-      params: {
-        cb: 'googleTranslateElementInit'
-      }
-    })
-
-    // Basit fallback çeviri (demo amaçlı)
-    const translated = text
-      .replace(/the/gi, 'the')
-      .replace(/and/gi, 've')
-      .replace(/is/gi, 'dir')
-
-    return {
-      engine: 'Google Translate',
-      sourceText: text,
-      translatedText: translated || text,
-      time: Date.now() - startTime,
-    }
-  } catch (error) {
-    console.error('Google Translate error:', error)
-    return {
-      engine: 'Google Translate',
-      sourceText: text,
-      translatedText: `[Google Hatası]`,
-      time: Date.now() - startTime,
-    }
-  }
-}
-
-// Claude AI Çevirisi (Anthropic)
-async function translateWithClaude(text: string): Promise<TranslationResult> {
-  const startTime = Date.now()
-  try {
-    const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: `Lütfen şu İngilizce metni Türkçeye çevir. Sadece çevrilmiş metni döndür:\n\n${text}`
-        }
-      ]
-    }, {
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      }
-    })
-
-    return {
-      engine: 'Claude AI',
-      sourceText: text,
-      translatedText: response.data.content[0].text,
-      time: Date.now() - startTime,
-    }
-  } catch (error) {
-    console.error('Claude error:', error)
-    return {
-      engine: 'Claude AI',
-      sourceText: text,
-      translatedText: `[Claude Hatası]`,
-      time: Date.now() - startTime,
-    }
-  }
-}
-
-// Libre Translate (Free, No Key)
 async function translateWithLibre(text: string): Promise<TranslationResult> {
   const startTime = Date.now()
   try {
@@ -124,25 +66,66 @@ async function translateWithLibre(text: string): Promise<TranslationResult> {
     })
 
     return {
-      engine: 'Libre Translate',
+      engine: 'libre',
       sourceText: text,
       translatedText: response.data.translatedText,
       time: Date.now() - startTime,
     }
   } catch (error) {
-    console.error('Libre Translate error:', error)
+    throw new Error(`Libre error: ${error instanceof Error ? error.message : 'Unknown'}`)
+  }
+}
+
+async function translateWithClaude(text: string): Promise<TranslationResult> {
+  const startTime = Date.now()
+  try {
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: `Çeviri: İngilizce'den Türkçe'ye. Sadece çevirilmiş metni döndür:\n\n${text}`
+        }
+      ]
+    }, {
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      }
+    })
+
     return {
-      engine: 'Libre Translate',
+      engine: 'claude',
       sourceText: text,
-      translatedText: `[Libre Hatası]`,
+      translatedText: response.data.content[0].text,
       time: Date.now() - startTime,
     }
+  } catch (error) {
+    throw new Error(`Claude error: ${error instanceof Error ? error.message : 'Unknown'}`)
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, engines = ['deepl', 'claude', 'libre'] } = await request.json()
+    // Kullanıcı yetkilendirmesi
+    const token = getAuthToken(request)
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Yetkilendirilmemiş' },
+        { status: 401 }
+      )
+    }
+
+    const userId = await getUserFromToken(token)
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Geçersiz token' },
+        { status: 401 }
+      )
+    }
+
+    const { text, engine = 'deepl', fileName = 'document.pdf' } = await request.json()
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -151,51 +134,87 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Metin sınırı (5000 karakter)
-    if (text.length > 5000) {
+    if (text.length > 50000) {
       return NextResponse.json(
-        { success: false, error: 'Maksimum 5000 karakter' },
+        { success: false, error: 'Maksimum 50000 karakter' },
         { status: 400 }
       )
     }
 
-    const results: TranslationResult[] = []
+    // Kelime sayısını hesapla
+    const wordCount = text.trim().split(/\s+/).length
+    const cost = wordCount <= 500 ? wordCount * 0.0005 : 500 * 0.0005 + (wordCount - 500) * 0.0004
 
-    // DeepL
-    if (engines.includes('deepl') && process.env.DEEPL_API_KEY) {
-      const deepl = await translateWithDeepL(text)
-      results.push(deepl)
-    }
-
-    // Claude
-    if (engines.includes('claude') && process.env.ANTHROPIC_API_KEY) {
-      const claude = await translateWithClaude(text)
-      results.push(claude)
-    }
-
-    // Libre Translate
-    if (engines.includes('libre')) {
-      const libre = await translateWithLibre(text)
-      results.push(libre)
-    }
-
-    // Google fallback
-    if (results.length === 0) {
-      const google = await translateWithGoogle(text)
-      results.push(google)
-    }
-
-    return NextResponse.json({
-      success: true,
-      sourceText: text,
-      translations: results,
-      engineCount: results.length,
+    // Çeviriye başla (status: translating)
+    const translation = await prisma.translation.create({
+      data: {
+        userId,
+        fileName,
+        wordCount,
+        cost,
+        status: 'translating',
+        sourceLanguage: 'en',
+        targetLanguage: 'tr',
+        sourceText: text,
+        translatedBy: engine,
+      },
     })
+
+    try {
+      let result: TranslationResult
+
+      // Motor seçimine göre çeviri yap
+      if (engine === 'deepl' && process.env.DEEPL_API_KEY) {
+        result = await translateWithDeepL(text)
+      } else if (engine === 'claude' && process.env.ANTHROPIC_API_KEY) {
+        result = await translateWithClaude(text)
+      } else {
+        result = await translateWithLibre(text)
+      }
+
+      // Çeviriyi güncelle
+      const completedTranslation = await prisma.translation.update({
+        where: { id: translation.id },
+        data: {
+          translatedText: result.translatedText,
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      })
+
+      // Ödeme kaydı oluştur
+      const payment = await prisma.payment.create({
+        data: {
+          userId,
+          translationId: translation.id,
+          amount: cost,
+          currency: 'USD',
+          status: 'pending',
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        translation: completedTranslation,
+        payment,
+        cost,
+      })
+    } catch (translationError) {
+      // Çeviri başarısız olursa status'u güncelle
+      await prisma.translation.update({
+        where: { id: translation.id },
+        data: { status: 'failed' },
+      })
+
+      throw translationError
+    }
   } catch (error) {
     console.error('Translation error:', error)
     return NextResponse.json(
       { success: false, error: 'Çeviri başarısız' },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }

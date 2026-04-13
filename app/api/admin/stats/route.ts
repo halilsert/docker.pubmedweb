@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,47 +14,57 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Stats hesapla (Mock data ile devam et)
-    const stats = {
-      totalUsers: 42,
-      totalTranslations: 156,
-      totalRevenue: 4250.50,
-      completedTranslations: 142,
-      failedTranslations: 8,
-      averageCost: 27.24,
-    }
+    // İstatistikleri hesapla
+    const totalUsers = await prisma.user.count()
+    const totalTranslations = await prisma.translation.count()
+    const completedTranslations = await prisma.translation.count({
+      where: { status: 'completed' },
+    })
+    const failedTranslations = await prisma.translation.count({
+      where: { status: 'failed' },
+    })
 
-    // Mock transactions
-    const transactions = [
-      {
-        id: '1',
-        userName: 'John Doe',
-        fileName: 'covid-19-research.pdf',
-        amount: 85.00,
-        status: 'completed',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    // Toplam gelir
+    const payments = await prisma.payment.findMany({
+      where: { status: 'completed' },
+    })
+    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0)
+    const averageCost = totalTranslations > 0 ? totalRevenue / totalTranslations : 0
+
+    // Son işlemler
+    const transactions = await prisma.payment.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+        translation: {
+          select: { fileName: true },
+        },
       },
-      {
-        id: '2',
-        userName: 'Jane Smith',
-        fileName: 'cancer-treatment.pdf',
-        amount: 60.00,
-        status: 'completed',
-        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-      },
-      {
-        id: '3',
-        userName: 'Ahmed Hassan',
-        fileName: 'genetics-study.pdf',
-        amount: 110.00,
-        status: 'pending',
-        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      },
-    ]
+    })
+
+    const formattedTransactions = transactions.map((t) => ({
+      id: t.id,
+      userName: t.user.name || 'N/A',
+      userEmail: t.user.email,
+      fileName: t.translation.fileName,
+      amount: t.amount,
+      status: t.status,
+      createdAt: t.createdAt,
+    }))
 
     return NextResponse.json({
-      stats,
-      transactions,
+      stats: {
+        totalUsers,
+        totalTranslations,
+        totalRevenue,
+        completedTranslations,
+        failedTranslations,
+        averageCost: parseFloat(averageCost.toFixed(2)),
+      },
+      transactions: formattedTransactions,
     })
   } catch (error) {
     console.error('Admin stats error:', error)
@@ -60,5 +72,7 @@ export async function GET(request: NextRequest) {
       { error: 'İstatistikler alınamadı' },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }

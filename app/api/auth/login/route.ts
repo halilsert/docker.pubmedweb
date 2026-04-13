@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { compare } from 'bcryptjs'
+import { PrismaClient } from '@prisma/client'
+import jwt from 'jsonwebtoken'
+
+const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,20 +16,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Mock authentication (demo amaçlı)
-    // Gerçekte veritabanından kullanıcı kontrol edilmeli
-    if (!email.includes('@')) {
+    // Veritabanından kullanıcı bul
+    const user = await prisma.user.findUnique({
+      where: { email },
+    })
+
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Geçersiz email' },
+        { success: false, error: 'Email veya şifre yanlış' },
         { status: 401 }
       )
     }
 
-    const mockUserId = Buffer.from(email).toString('base64').slice(0, 12)
-    const token = Buffer.from(`${mockUserId}:${Date.now()}`).toString('base64')
+    // Şifre kontrol et
+    const isPasswordValid = await compare(password, user.password || '')
+
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { success: false, error: 'Email veya şifre yanlış' },
+        { status: 401 }
+      )
+    }
+
+    // JWT token oluştur
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.NEXTAUTH_SECRET || 'default-secret-key',
+      { expiresIn: '30d' }
+    )
 
     const response = NextResponse.json(
-      { success: true, message: 'Başarıyla giriş yapıldı', userId: mockUserId },
+      { 
+        success: true, 
+        message: 'Başarıyla giriş yapıldı', 
+        token,
+        user: { id: user.id, email: user.email, name: user.name, role: user.role }
+      },
       { status: 200 }
     )
 
@@ -43,5 +69,7 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Sunucu hatası' },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }
