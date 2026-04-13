@@ -3,9 +3,7 @@ import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-15',
-})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 
 function getAuthToken(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
