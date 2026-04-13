@@ -1,21 +1,22 @@
-import { PrismaClient as PC } from '.prisma/client/default'
+import { type PrismaClient } from '.prisma/client/default'
 
 declare global {
-  var prisma: PC | undefined
+  var prisma: PrismaClient | undefined
 }
 
-const globalForPrisma = global as typeof global & {
-  prisma: PC | undefined
-}
+let prisma: PrismaClient
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PC({
-    log: ['error'],
-  })
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV === 'production') {
+  // @ts-expect-error - Prisma generates this at build time
+  const { PrismaClient } = await import('@prisma/client/default')
+  prisma = new PrismaClient()
+} else {
+  if (!global.prisma) {
+    // @ts-expect-error - Prisma generates this at build time
+    const { PrismaClient } = await import('@prisma/client/default')
+    global.prisma = new PrismaClient()
+  }
+  prisma = global.prisma
 }
 
 export default prisma
