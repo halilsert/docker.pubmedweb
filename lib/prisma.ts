@@ -1,22 +1,16 @@
 import { type PrismaClient } from '.prisma/client/default'
 
-declare global {
-  var prisma: PrismaClient | undefined
+const globalForPrisma = global as typeof global & {
+  prisma?: PrismaClient
 }
 
-let prisma: PrismaClient
-
-if (process.env.NODE_ENV === 'production') {
+export const prisma: PrismaClient = globalForPrisma.prisma ?? (() => {
   // @ts-expect-error - Prisma generates this at build time
-  const { PrismaClient } = await import('@prisma/client/default')
-  prisma = new PrismaClient()
-} else {
-  if (!global.prisma) {
-    // @ts-expect-error - Prisma generates this at build time
-    const { PrismaClient } = await import('@prisma/client/default')
-    global.prisma = new PrismaClient()
-  }
-  prisma = global.prisma
-}
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { PrismaClient } = require('@prisma/client/default')
+  return new PrismaClient()
+})()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export default prisma
