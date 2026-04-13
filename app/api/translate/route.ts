@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import axios from 'axios'
-import { PrismaClient } from '@prisma/client'
+import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-
-const prisma = new PrismaClient()
 
 interface TranslationResult {
   engine: string
@@ -214,7 +212,5 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Çeviri başarısız' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

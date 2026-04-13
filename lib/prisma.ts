@@ -1,21 +1,13 @@
-// Mock Prisma Client (Real veritabanı kurulduktan sonra güncellenecek)
-// npx prisma generate komutu çalıştırıldıktan sonra otomatik oluşacak
+import { PrismaClient } from '@prisma/client'
 
-type PrismaClient = any
+const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
-let prisma: PrismaClient
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ['error'],
+  })
 
-if (process.env.NODE_ENV === 'production') {
-  prisma = {} // Real Prisma client
-} else {
-  if (!global.prisma) {
-    global.prisma = {} // Real Prisma client
-  }
-  prisma = global.prisma
-}
-
-declare global {
-  var prisma: PrismaClient | undefined
-}
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export default prisma

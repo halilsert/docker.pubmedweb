@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
 import Stripe from 'stripe'
 
-const prisma = new PrismaClient()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2024-12-15',
 })
@@ -133,7 +132,5 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Ödeme oluşturulamadı' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

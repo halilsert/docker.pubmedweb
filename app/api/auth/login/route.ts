@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { compare } from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
+import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-
-const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +67,5 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Sunucu hatası' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { PrismaClient } from '@prisma/client'
+import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-
-const prisma = new PrismaClient()
 
 function getAuthToken(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -58,7 +56,5 @@ export async function GET(request: NextRequest) {
       { success: false, error: 'Yetkilendirilmemiş' },
       { status: 401 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
