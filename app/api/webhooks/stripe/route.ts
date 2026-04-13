@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new (require('stripe'))(process.env.STRIPE_SECRET_KEY)
+  : null
 
 export async function POST(request: NextRequest) {
   try {
+    if (!stripe) {
+      return NextResponse.json({ received: false, error: 'Stripe not configured' }, { status: 400 })
+    }
+
     const body = await request.text()
     const sig = request.headers.get('stripe-signature')
 
@@ -13,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: false }, { status: 400 })
     }
 
-    let event: Stripe.Event
+    let event
 
     try {
       event = stripe.webhooks.constructEvent(
@@ -28,8 +33,8 @@ export async function POST(request: NextRequest) {
 
     // Payment başarılı oldu
     if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session
-      const { translationId, userId } = session.metadata as { translationId: string; userId: string }
+      const session = event.data.object
+      const { translationId, userId } = session.metadata
 
       // Payment kaydını güncelle
       const payment = await prisma.payment.findFirst({
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest) {
           where: { id: payment.id },
           data: {
             status: 'completed',
-            stripePaymentId: session.payment_intent as string,
+            stripePaymentId: session.payment_intent,
             paidAt: new Date(),
           },
         })
@@ -62,8 +67,8 @@ export async function POST(request: NextRequest) {
 
     // Payment başarısız
     if (event.type === 'charge.failed') {
-      const charge = event.data.object as Stripe.Charge
-      const sessionId = charge.payment_intent as string
+      const charge = event.data.object
+      const sessionId = charge.payment_intent
 
       const payment = await prisma.payment.findFirst({
         where: { stripePaymentId: sessionId },

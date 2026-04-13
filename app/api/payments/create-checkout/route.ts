@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new (require('stripe'))(process.env.STRIPE_SECRET_KEY)
+  : null
 
 function getAuthToken(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -27,6 +28,13 @@ async function getUserFromToken(token: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!stripe) {
+      return NextResponse.json(
+        { success: false, error: 'Payment service not available' },
+        { status: 503 }
+      )
+    }
+
     const token = getAuthToken(request)
     if (!token) {
       return NextResponse.json(
@@ -83,7 +91,7 @@ export async function POST(request: NextRequest) {
               name: `Çeviri: ${translation.fileName}`,
               description: `${translation.wordCount} sözcük`,
             },
-            unit_amount: Math.round(amount * 100), // Cents cinsinden
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
