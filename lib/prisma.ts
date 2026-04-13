@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
 const globalForPrisma = global as typeof global & {
   prisma?: PrismaClient
@@ -7,7 +9,11 @@ const globalForPrisma = global as typeof global & {
 export const prisma: PrismaClient =
   globalForPrisma.prisma ||
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    adapter: new PrismaPg({
+      pool: new Pool({
+        connectionString: process.env.DATABASE_URL,
+      }),
+    }),
   })
 
 if (process.env.NODE_ENV !== 'production') {
